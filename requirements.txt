@@ -1,0 +1,5 @@
+botocore
+logging
+awscli
+click
+boto3

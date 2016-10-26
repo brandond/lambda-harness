@@ -1,0 +1,86 @@
+Python Lambda Test Harness
+==========================
+
+Sets up and executes Python code in a method highly analagous to the Lambda runtime environment.
+
+Current notable gaps include:
+* No support for runtime or memory limits
+* No support for intra-execution cgroup freeze/thaw
+
+Other than these caveats, it should look and feel roughly like a real Lambda execution, including all the correct environment variables, data structures, and log messages.
+
+
+Example
+=======
+
+```
+[user@host ~]$ invoke-lambda --path ~/lambdas/Exec_Command_Example/ --payload '{"command": "echo Hello, World"}'
+<RUN mode=event handler=function.lambda_handler suppress_init=False>
+<RUNNING>
+[INFO]  2016-10-27T00:17:23.278Z                Function module init() called
+
+START RequestId: 5f2178ee-2560-4b88-b253-7889ccfaa944 Version: $LATEST
+[INFO]  2016-10-27T00:17:23.278Z        5f2178ee-2560-4b88-b253-7889ccfaa944    Running command: echo Hello, World
+
+Hello, World
+
+END: RequestId: 5f2178ee-2560-4b88-b253-7889ccfaa944
+```
+
+Bootstrap
+=========
+
+`lambda bootstrap`
+
+In order to accurately simulate the AWS Lambda environment, several Python modules must be extracted from the Lambda filesystem and made available to the Python module. This is done by:
+* Creating a temporary Role and Lambda
+* Invoking the Lambda to extract the files
+* removing the Role and Lambda. 
+
+The Lambda does need ANY rights; indeed the temporary role has no policies attached to it. Your AWS user must have access to create and delete IAM Roles and Lambda Functions.
+
+Bootstrap Usage
+---------------
+
+```
+Usage: lambda bootstrap [OPTIONS]
+
+Options:
+  --profile TEXT            Use a specific profile from your credential file.
+  --region TEXT             The region to use. Overrides config/env settings.
+  --cleanup / --no-cleanup  Do not remove bootstrap role and lambda after code
+                            extraction
+ --help                     Show this message and exit.
+```
+
+Invoke
+======
+
+`lambda invoke --path <path/to/lambda/directory>`
+
+You should provide a path to a directory containing both the Lambda module, and a [lambda-uploader](https://github.com/rackerlabs/lambda-uploader) compatible `lambda.json` file describing the execution environment
+
+The payload and client-context parameters may contain either raw JSON, or a URI (`file://`, `http://`, etc) of a file that will be processed as [newline delimited JSON](http://specs.okfnlabs.org/ndjson/index.html).
+
+Invoke Usage
+------------
+
+```
+Usage: lambda invoke [OPTIONS]
+
+Options:
+  --path PATH            The path to your Python Lambda function and
+                         configuration  [required]
+  --payload TEXT         JSON that you want to provide to your Lambda function
+                         as input.
+  --client-context TEXT  Client-specific information as base64-encoded JSON.
+  --qualifier TEXT       Lambda function version or alias name.
+  --profile TEXT         Use a specific profile from your credential file.
+  --region TEXT          The region to use. Overrides config/env settings.
+  --help                 Show this message and exit.
+```
+
+Notes
+=====
+
+Credentials for any AWS API calls made by your function are provided by your AWS CLI Profile. Ensure that the profile you have selected (with the `--profile` option) has the appropriate rights.
