@@ -2,6 +2,10 @@
 # coding: utf-8
 
 from setuptools import setup, find_packages
+import sys
+
+if sys.version_info <= (2,7) or sys.version_info >= (3,0):
+    raise RuntimeError("lambda-harness doesn't support Python versions other than 2.7")
 
 version = {}
 
@@ -34,11 +38,7 @@ setup(
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5'
     ],
     entry_points={
         'console_scripts': [

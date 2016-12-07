@@ -1,7 +1,7 @@
 from __future__ import print_function
-from slicer import Slicer
 from awscli.paramfile import get_paramfile, ResourceLoadingError
-import extractor
+from .extractor import Extractor
+from .slicer import Slicer
 import click
 import json
 import imp
@@ -65,4 +65,4 @@ def invoke(path, payload, client_context, qualifier, profile, region):
 @click.option('--region', default=None, help='The region to use. Overrides config/env settings.')
 @click.option('--cleanup/--no-cleanup', default=True, help='Do not remove bootstrap role and lambda after code extraction')
 def bootstrap(profile, region, cleanup):
-    extractor.Extractor(profile, region, cleanup).extract()
+    Extractor(profile, region, cleanup).extract()

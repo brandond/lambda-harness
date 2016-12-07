@@ -18,7 +18,7 @@ Example
 
 ::
 
-  [user@host ~]$ invoke-lambda --path ~/lambdas/Exec_Command_Example/ --payload '{"command": "echo Hello, World"}'
+  [user@host ~]$ lambda invoke --path ~/lambdas/Exec_Command_Example/ --payload '{"command": "echo Hello, World"}'
   <CREATE Id:3d57aea1ba1e421a9f071ba741a278cb>
   <RUN Mode:event Handler:function.lambda_handler Suppress_init:0>
   <RUNNING>
