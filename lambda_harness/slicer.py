@@ -7,6 +7,7 @@ import boto3
 import time
 import json
 import uuid
+import math
 import sys
 import os
 
@@ -70,6 +71,7 @@ class Slicer(object):
         atexit.register(self.terminate_sandbox)
 
     def start_sandbox(self):
+        self.start_time = datetime.now()
         if self.sandbox_process != None:
             return
 
@@ -77,7 +79,6 @@ class Slicer(object):
         self.sandbox_process = Process(target=self.start_bootstrap, args=(child_socket,))
         print("<CREATE Id:%s>" %(self.sandbox_id), file=sys.stderr)
        
-        self.start_time = datetime.now()
         self.sandbox_process.start()
         self.send_start()
         self.poll_until('Init Done')
@@ -94,6 +95,7 @@ class Slicer(object):
         self.sandbox_process.join()
         self.sandbox_process = None
         self.control_socket = None
+        self.start_time = None
         self.state = 'Terminated'
 
     def invoke(self, event, context):
@@ -105,6 +107,7 @@ class Slicer(object):
     def start_bootstrap(self, conn):
         bootstrap_path = os.path.join(os.path.dirname(__file__), 'awslambda', 'bootstrap.py')
         self.setup_environment(str(conn.fileno()))
+        os.chdir(self.path)
         os.execl(sys.executable, sys.executable, bootstrap_path)
 
     def setup_environment(self, fileno):
@@ -195,6 +198,7 @@ class Slicer(object):
 
     def sandbox_done(self, invokeid, errortype=None, result=None):
         assert self.invoke_id == invokeid
+        duration = (datetime.now() - self.start_time).total_seconds() * 1000
     
         if result:
             self.result = json.loads(result)
@@ -202,7 +206,10 @@ class Slicer(object):
         if self.state == 'Running':
             self.state = 'Init Done'
         elif self.state in ['Invoking', 'Terminated']:
+            billed = math.ceil(duration / 100.0) * 100
             print("END: RequestId: %s" % (invokeid), file=sys.stderr)
+            print("REPORT: RequestId: %s Duration: %0.2f ms Billed Duration: %d ms Memory Size: %s MB Max Memory Used: %s MB" 
+                  % (invokeid, duration, billed, self.memory, 'N/A'), file=sys.stderr)
             self.state  = 'Invoke Done'
             self.invoke_id = str(uuid.uuid4())
     

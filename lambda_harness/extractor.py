@@ -5,7 +5,9 @@ import tarfile
 import zipfile
 import base64
 import boto3
+import json
 import time
+import bz2
 import io
 import os
 
@@ -40,8 +42,8 @@ class Extractor(object):
         try:
             response = self.iam.create_role(RoleName=self.ROLE_NAME,
                                             AssumeRolePolicyDocument=inspect.cleandoc(self.ROLE_POLICY))
-            print('Waiting 5 seconds for role creation to complete...')
-            time.sleep(5)
+            print('Waiting 15 seconds for role creation to complete...')
+            time.sleep(15)
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'EntityAlreadyExists':
                 print('Role already exists')
@@ -82,8 +84,8 @@ class Extractor(object):
 
     def extract_payload(self, response):
         if response['StatusCode'] == 200 and not 'FunctionError' in response:
-            print('Extracting awslambda from response:')
-            res_bytes = response['Payload'].read()
+            print('Extracting awslambda from response')
+            res_bytes = json.load(response['Payload'])
             tar_bytes = io.BytesIO()
             tar_bytes.write(base64.b64decode(res_bytes))
             tar_bytes.seek(0)

@@ -1,5 +1,6 @@
 from __future__ import print_function
 from awscli.paramfile import get_paramfile, ResourceLoadingError
+from pprint import pprint
 from .extractor import Extractor
 from .slicer import Slicer
 import click
@@ -56,7 +57,11 @@ def invoke(path, payload, client_context, qualifier, profile, region):
         event = events.readline()
         context = contexts.readline()
         if event:
-            print(slicer.invoke(event, context))
+            result = slicer.invoke(event, context)
+            if isinstance(result, basestring):
+                print(result)
+            else:
+                pprint(result)
         else:
             break
 
