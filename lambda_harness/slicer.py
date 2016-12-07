@@ -216,4 +216,6 @@ class Slicer(object):
         remaining_seconds = self.timeout
         if self.start_time:
             remaining_seconds -= (datetime.now() - self.start_time).total_seconds()
-        return remaining_seconds * 1000.0
+        self.control_socket.send({'name': 'remaining',
+                                  'args': remaining_seconds * 1000.0
+                                  })

@@ -31,4 +31,5 @@ def log_bytes(msg, fileno):
     return socket.send({'name': 'log', 'args': [msg, fileno]})
 
 def get_remaining_time():
-    return socket.send({'name': 'remaining', 'args': []})
+    socket.send({'name': 'remaining'})
+    return socket.recv().get('args', 0.0)
