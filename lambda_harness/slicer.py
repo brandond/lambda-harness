@@ -95,7 +95,6 @@ class Slicer(object):
         self.sandbox_process.join()
         self.sandbox_process = None
         self.control_socket = None
-        self.start_time = None
         self.state = 'Terminated'
 
     def invoke(self, event, context):
@@ -108,6 +107,7 @@ class Slicer(object):
         bootstrap_path = os.path.join(os.path.dirname(__file__), 'awslambda', 'bootstrap.py')
         self.setup_environment(str(conn.fileno()))
         os.chdir(self.path)
+        os.setsid()
         os.execl(sys.executable, sys.executable, bootstrap_path)
 
     def setup_environment(self, fileno):
@@ -199,7 +199,7 @@ class Slicer(object):
     def sandbox_done(self, invokeid, errortype=None, result=None):
         assert self.invoke_id == invokeid
         duration = (datetime.now() - self.start_time).total_seconds() * 1000
-    
+
         if result:
             self.result = json.loads(result)
 
