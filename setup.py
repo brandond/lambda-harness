@@ -8,7 +8,7 @@ version = {}
 with open("lambda_harness/_version.py") as fp:
     exec(fp.read(), version)
 
-with open('README.md') as f:
+with open('README.rst') as f:
     readme = f.read()
 
 with open('LICENSE') as f:
@@ -24,7 +24,9 @@ setup(
     install_requires=requirements,
     provides=[ 'lambda_harness' ],
     author='Brandon Davidson',
-    description='Basic test harness for AWS Lambda',
+    author_email='brad@oatmail.org',
+    url='https://github.com/brandond/lambda-harness',
+    description='Test harness for AWS Lambda',
     long_description=readme,
     license=license,
     include_package_data=True,
@@ -44,6 +46,4 @@ setup(
             'lambda=lambda_harness.cli:cli'
         ]
     },
-
 )
-

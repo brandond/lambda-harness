@@ -35,7 +35,7 @@ Bootstrap
 In order to accurately simulate the AWS Lambda environment, several Python modules must be extracted from the Lambda filesystem and made available to the Python module. This is done by:
 * Creating a temporary Role and Lambda
 * Invoking the Lambda to extract the files
-* removing the Role and Lambda. 
+* Removing the Role and Lambda
 
 The Lambda does need ANY rights; indeed the temporary role has no policies attached to it. Your AWS user must have access to create and delete IAM Roles and Lambda Functions.
 
