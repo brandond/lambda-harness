@@ -43,6 +43,7 @@ class Slicer(object):
                  'memory',
                  'timeout',
                  'control_socket',
+                 'console_socket',
                  'sandbox_process',
                  'state',
                  'result',
@@ -64,6 +65,7 @@ class Slicer(object):
         self.sandbox_id = str(uuid.uuid4()).replace('-','')
         self.invoke_id = str(uuid.uuid4())
         self.control_socket = None
+        self.console_socket = None
         self.sandbox_process = None
         self.state = 'Uninitialized'
         self.result = None
@@ -75,8 +77,9 @@ class Slicer(object):
         if self.sandbox_process != None:
             return
 
-        self.control_socket, child_socket = Pipe()
-        self.sandbox_process = Process(target=self.start_bootstrap, args=(child_socket,))
+        self.control_socket, child_control = Pipe()
+        self.console_socket, child_console = Pipe()
+        self.sandbox_process = Process(target=self.start_bootstrap, args=(child_control,child_console))
         print("<CREATE Id:%s>" %(self.sandbox_id), file=sys.stderr)
        
         self.sandbox_process.start()
@@ -95,6 +98,7 @@ class Slicer(object):
         self.sandbox_process.join()
         self.sandbox_process = None
         self.control_socket = None
+        self.console_socket = None
         self.state = 'Terminated'
 
     def invoke(self, event, context):
@@ -103,38 +107,58 @@ class Slicer(object):
         self.poll_until('Invoke Done')
         return self.result
         
-    def start_bootstrap(self, conn):
+    def start_bootstrap(self, control, console):
         bootstrap_path = os.path.join(os.path.dirname(__file__), 'awslambda', 'bootstrap.py')
-        self.setup_environment(str(conn.fileno()))
+        bootstrap_env = self.setup_environment(str(control.fileno()), str(console.fileno()))
         os.chdir(self.path)
         os.setsid()
-        os.execl(sys.executable, sys.executable, bootstrap_path)
+        os.execle(sys.executable, sys.executable, bootstrap_path, bootstrap_env)
 
-    def setup_environment(self, fileno):
-        # These are used by the runtime support lib and explicitly clearned out by the bootstrap code
-        for env in ["_LAMBDA_SHARED_MEM_FD",
-                    "_LAMBDA_LOG_FD",
-                    "_LAMBDA_CONSOLE_SOCKET",
-                    "_LAMBDA_RUNTIME_LOAD_TIME"]:
-            os.environ[env] = '-1'
+    def setup_environment(self, control_fd, console_fd):
+        environ = {}
+        runtime_dir = os.path.dirname(__file__)
+        ex_path = ['/usr/local/bin', '/usr/bin', '/bin']
+        py_path = [runtime_dir]
+        ld_path = ['/lib64', '/usr/lib64', 
+                   runtime_dir, os.path.join(runtime_dir, 'lib'), 
+                   self.path, os.path.join(self.path, 'lib')]
 
-        os.environ['_LAMBDA_CONTROL_SOCKET'] = fileno
+        # Include unpackaged virtualenv if present to make development easier
+        if 'VIRTUAL_ENV' in os.environ:
+            venv = os.environ['VIRTUAL_ENV']
+            ex_path.insert(0, os.path.join(venv, 'bin'))
+            py_path.insert(0, venv)
+            ld_path.insert(0, os.path.join(venv, 'lib'))
+
+        # These are used by the native runtime support lib and explicitly clearned out by the bootstrap code
+        environ["_LAMBDA_SHARED_MEM_FD"] = '-1'
+        environ["_LAMBDA_LOG_FD"] = '-1'
+        environ["_LAMBDA_CONSOLE_SOCKET"] = console_fd
+        environ['_LAMBDA_CONTROL_SOCKET'] = control_fd
+        environ["_LAMBDA_RUNTIME_LOAD_TIME"] = '%d' % (time.time() * 1000000000)
 
         # AWS environment has /etc/localtime -> /usr/share/zoneinfo/UTC
         # but we fake it by just setting TZ
-        os.environ['TZ'] = 'UTC'
+        environ['TZ'] = 'UTC'
+
+        # Base execution environment
+        environ['LD_LIBRARY_PATH'] = os.pathsep.join(ld_path)
+        environ['PYTHONPATH'] = os.pathsep.join(py_path)
+        environ['PATH'] = os.pathsep.join(ex_path)
 
         # Remaining vars need to be set for a Lambda-like environment
-        os.environ['LAMBDA_RUNTIME_DIR'] = os.path.dirname(__file__)
-        os.environ['LAMBDA_TASK_ROOT'] = self.path
-        os.environ['AWS_DEFAULT_REGION'] = self.session.region_name
-        os.environ['AWS_REGION'] = self.session.region_name
+        environ['LAMBDA_RUNTIME_DIR'] = runtime_dir
+        environ['LAMBDA_TASK_ROOT'] = self.path
+        environ['AWS_DEFAULT_REGION'] = self.session.region_name
+        environ['AWS_REGION'] = self.session.region_name
 
-        os.environ['AWS_LAMBDA_FUNCTION_NAME'] = self.name
-        os.environ['AWS_LAMBDA_LOG_GROUP_NAME'] = '/aws/lambda/%s' % (self.name)
-        os.environ['AWS_LAMBDA_LOG_STREAM_NAME'] = '%s/[%s]%s' % (time.strftime('%Y/%m/%d'), self.version, self.sandbox_id)
-        os.environ['AWS_LAMBDA_FUNCTION_VERSION'] = self.version
-        os.environ['AWS_LAMBDA_FUNCTION_MEMORY_SIZE'] = self.memory
+        environ['AWS_LAMBDA_FUNCTION_NAME'] = self.name
+        environ['AWS_LAMBDA_LOG_GROUP_NAME'] = '/aws/lambda/%s' % (self.name)
+        environ['AWS_LAMBDA_LOG_STREAM_NAME'] = '%s/[%s]%s' % (time.strftime('%Y/%m/%d'), self.version, self.sandbox_id)
+        environ['AWS_LAMBDA_FUNCTION_VERSION'] = self.version
+        environ['AWS_LAMBDA_FUNCTION_MEMORY_SIZE'] = self.memory
+
+        return environ
 
     def poll_until(self, state):
         while self.state != state:
