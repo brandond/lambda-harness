@@ -43,6 +43,7 @@ def invoke(path, payload, client_context, qualifier, profile, region):
 
     lambda_name = lambda_config.get('name')
     lambda_memory = str(lambda_config.get('memory'))
+    lambda_timeout = int(lambda_config.get('timeout'))
     lambda_handler = lambda_config.get('handler')
     lambda_version = qualifier
     lambda_region = lambda_config.get('region') if region is None else region
@@ -50,7 +51,7 @@ def invoke(path, payload, client_context, qualifier, profile, region):
     events = io.BytesIO(payload.encode())
     contexts = io.BytesIO(client_context.encode())
 
-    slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_region)
+    slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_timeout, lambda_region)
     while True:
         event = events.readline()
         context = contexts.readline()

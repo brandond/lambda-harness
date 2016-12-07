@@ -1,5 +1,6 @@
 from __future__ import print_function
 from multiprocessing import Process, Pipe
+from datetime import datetime
 import atexit
 import base64
 import boto3
@@ -39,16 +40,18 @@ class Slicer(object):
                  'handler',
                  'version',
                  'memory',
+                 'timeout',
                  'control_socket',
                  'sandbox_process',
                  'state',
-                 'result'
+                 'result',
+                 'start_time'
                 )
 
     def make_context(self, context):
         return {'cognito_identity_id': None, 'cognito_identity_pool_id': None, 'client_context': base64.b64decode(context) if context else None}
 
-    def __init__(self, profile, path, name, handler, version, memory, region):
+    def __init__(self, profile, path, name, handler, version, memory, timeout, region):
         self.session = boto3.session.Session(profile_name=profile, region_name=region)
         self.account_id = self.session.client('sts').get_caller_identity().get('Account') 
         self.path = os.path.abspath(path)
@@ -56,12 +59,14 @@ class Slicer(object):
         self.handler = handler
         self.version = version
         self.memory = memory
+        self.timeout = timeout
         self.sandbox_id = str(uuid.uuid4()).replace('-','')
         self.invoke_id = str(uuid.uuid4())
         self.control_socket = None
         self.sandbox_process = None
         self.state = 'Uninitialized'
         self.result = None
+        self.start_time = None
         atexit.register(self.terminate_sandbox)
 
     def start_sandbox(self):
@@ -72,6 +77,7 @@ class Slicer(object):
         self.sandbox_process = Process(target=self.start_bootstrap, args=(child_socket,))
         print("<CREATE Id:%s>" %(self.sandbox_id), file=sys.stderr)
        
+        self.start_time = datetime.now()
         self.sandbox_process.start()
         self.send_start()
         self.poll_until('Init Done')
@@ -116,7 +122,7 @@ class Slicer(object):
         os.environ['TZ'] = 'UTC'
 
         # Remaining vars need to be set for a Lambda-like environment
-        os.environ['LAMBDA_RUNTIME_DIR'] = os.path.join(os.path.dirname(__file__), 'awslambda')
+        os.environ['LAMBDA_RUNTIME_DIR'] = os.path.dirname(__file__)
         os.environ['LAMBDA_TASK_ROOT'] = self.path
         os.environ['AWS_DEFAULT_REGION'] = self.session.region_name
         os.environ['AWS_REGION'] = self.session.region_name
@@ -143,7 +149,9 @@ class Slicer(object):
                 elif name == 'console':
                     self.receive_console_message(*args)
                 elif name == 'log':
-                    self.recieve_log_bytes(*args)
+                    self.receive_log_bytes(*args)
+                elif name == 'remaining':
+                    self.remaining_time(*args)
                 else:
                     raise RuntimeError('Received unknown message from pipe') 
             elif self.sandbox_process.exitcode != None:
@@ -201,9 +209,11 @@ class Slicer(object):
     def receive_console_message(self, msg):
         sys.stderr.write(msg)
 
-    def recieve_log_bytes(self, msg, fileno):
+    def receive_log_bytes(self, msg, fileno):
         sys.stderr.write(msg)
         
-
-
-
+    def remaining_time(self):
+        remaining_seconds = self.timeout
+        if self.start_time:
+            remaining_seconds -= (datetime.now() - self.start_time).total_seconds()
+        return remaining_seconds * 1000.0
