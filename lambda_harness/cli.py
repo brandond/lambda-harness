@@ -5,6 +5,7 @@ from .extractor import Extractor
 from .slicer import Slicer
 import click
 import json
+import time
 import imp
 import sys
 import os
@@ -58,6 +59,21 @@ def try_get_paramfile(ctx, param, value):
             raise click.BadParameter(e.message)
     return value
 
+def print_var(result):
+    tty = sys.stdout.isatty()
+    if tty:
+        sys.stdout.write('\033[1m')
+        sys.stdout.flush()
+
+    if isinstance(result, basestring):
+        print(result)
+    else:
+        pprint(result)
+
+    if tty:
+        sys.stdout.write('\033[0m')
+        sys.stdout.flush()
+
 @click.group()
 def cli():
     pass
@@ -70,8 +86,8 @@ def cli():
 @click.option('--qualifier', default='$LATEST', help='Lambda function version or alias name.')
 @click.option('--profile', default=None, help='Use a specific profile from your credential file.')
 @click.option('--region', default=None, help='The region to use. Overrides config/env settings.')
-def invoke(path, payload, client_context, variables, qualifier, profile, region):
-
+@click.option('--interval', default=0, help='Inverval in milliseconds between invocations.')
+def invoke(path, payload, client_context, variables, qualifier, profile, region, interval):
     module_path = os.path.dirname(__file__)
     for module_file in ('bootstrap.py', 'wsgi.py'):
         if os.path.getsize(os.path.join(module_path, 'awslambda', module_file)) < 512:
@@ -95,20 +111,18 @@ def invoke(path, payload, client_context, variables, qualifier, profile, region)
     events = io.BytesIO(payload.encode())
     contexts = io.BytesIO(client_context.encode())
 
+    first_invoke = True
     slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_timeout, lambda_region, lambda_variables)
     while True:
         event = events.readline()
         context = contexts.readline()
         if event:
-            result = slicer.invoke(event, context)
-            if sys.stdout.isatty():
-                sys.stdout.write('\033[1m')
-            if isinstance(result, basestring):
-                print(result)
+            if first_invoke:
+                first_invoke = False
             else:
-                pprint(result)
-            if sys.stdout.isatty():
-                sys.stdout.write('\033[0m')
+                time.sleep(interval / 1000.0)
+
+            print_var(slicer.invoke(event, context))
         else:
             break
 

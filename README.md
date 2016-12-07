@@ -75,9 +75,12 @@ Options:
   --payload TEXT         JSON that you want to provide to your Lambda function
                          as input.
   --client-context TEXT  Client-specific information as base64-encoded JSON.
+  --variables TEXT       JSON runtime environment variables. Overrides config
+                         settings.
   --qualifier TEXT       Lambda function version or alias name.
   --profile TEXT         Use a specific profile from your credential file.
   --region TEXT          The region to use. Overrides config/env settings.
+  --interval INTEGER     Inverval in milliseconds between invocations.
   --help                 Show this message and exit.
 ```
 
