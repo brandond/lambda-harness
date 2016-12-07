@@ -15,16 +15,17 @@ Example
 
 ```
 [user@host ~]$ lambda invoke --path ~/lambdas/Exec_Command_Example/ --payload '{"command": "echo Hello, World"}'
-<CREATE Id:3d57aea1ba1e421a9f071ba741a278cb>
+<CREATE Id:4771091906264488b7ad71f930e2aea0>
 <RUN Mode:event Handler:function.lambda_handler Suppress_init:0>
 <RUNNING>
-[INFO]  2016-12-07T00:38:29.752Z                Function module init() called
-START RequestId: 3773e161-e0af-437e-aa95-cd6dea0e457e Version: $LATEST
-[INFO]  2016-12-07T00:38:29.752Z        3773e161-e0af-437e-aa95-cd6dea0e457e    Running command: echo Hello, World
-END: RequestId: 3773e161-e0af-437e-aa95-cd6dea0e457e
+[INFO]  2016-12-07T08:54:13.632Z                Function module init() called
+START RequestId: b64c27dc-0fe6-4ba7-9123-24ea0cc3072f Version: $LATEST
+[INFO]  2016-12-07T08:54:13.633Z        b64c27dc-0fe6-4ba7-9123-24ea0cc3072f    Running command: echo Hello, World
+END: RequestId: b64c27dc-0fe6-4ba7-9123-24ea0cc3072f
+REPORT: RequestId: b64c27dc-0fe6-4ba7-9123-24ea0cc3072f Duration: 92.31 ms Billed Duration: 100 ms Memory Size: 128 MB Max Memory Used: N/A MB
 Hello, World
 
-<TERMINATE Id:3d57aea1ba1e421a9f071ba741a278cb>
+<TERMINATE Id:4771091906264488b7ad71f930e2aea0>
 ```
 
 Bootstrap
