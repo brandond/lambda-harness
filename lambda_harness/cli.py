@@ -6,6 +6,7 @@ from .slicer import Slicer
 import click
 import json
 import imp
+import sys
 import os
 import io
 
@@ -34,7 +35,7 @@ def invoke(path, payload, client_context, qualifier, profile, region):
 
     module_path = os.path.dirname(__file__)
     for module_file in ('bootstrap.py', 'wsgi.py'):
-        if not os.path.isfile(os.path.join(module_path, 'awslambda', module_file)):
+        if os.path.getsize(os.path.join(module_path, 'awslambda', module_file)) < 512:
             raise click.exceptions.ClickException('AWS Lambda code is not available. Please run "lambda bootstrap"')
     try:
         with open(os.path.join(path, 'lambda.json'), 'r') as json_file:
@@ -58,10 +59,14 @@ def invoke(path, payload, client_context, qualifier, profile, region):
         context = contexts.readline()
         if event:
             result = slicer.invoke(event, context)
+            if sys.stdout.isatty():
+                sys.stdout.write('\033[1m')
             if isinstance(result, basestring):
                 print(result)
             else:
                 pprint(result)
+            if sys.stdout.isatty():
+                sys.stdout.write('\033[0m')
         else:
             break
 
