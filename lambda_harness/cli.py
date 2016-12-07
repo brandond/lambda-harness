@@ -66,10 +66,11 @@ def cli():
 @click.option('--path', required=True, type=click.Path(exists=True), help='The path to your Python Lambda function and configuration')
 @click.option('--payload', default='{}', help='JSON that you want to provide to your Lambda function as input.', callback=try_get_paramfile)
 @click.option('--client-context', default='', help='Client-specific information as base64-encoded JSON.', callback=try_get_paramfile)
+@click.option('--variables', default=None, help='JSON runtime environment variables. Overrides config settings.')
 @click.option('--qualifier', default='$LATEST', help='Lambda function version or alias name.')
 @click.option('--profile', default=None, help='Use a specific profile from your credential file.')
 @click.option('--region', default=None, help='The region to use. Overrides config/env settings.')
-def invoke(path, payload, client_context, qualifier, profile, region):
+def invoke(path, payload, client_context, variables, qualifier, profile, region):
 
     module_path = os.path.dirname(__file__)
     for module_file in ('bootstrap.py', 'wsgi.py'):
@@ -87,7 +88,7 @@ def invoke(path, payload, client_context, qualifier, profile, region):
     lambda_handler = lambda_config.get('handler')
     lambda_version = qualifier
     lambda_region = lambda_config.get('region') if region is None else region
-    lambda_variables = lambda_config.get('variables', {})
+    lambda_variables = lambda_config.get('variables', {}) if variables is None else json.loads(variables)
 
     validate_variables(lambda_variables)
 
