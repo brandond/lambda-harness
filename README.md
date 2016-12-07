@@ -15,16 +15,16 @@ Example
 
 ```
 [user@host ~]$ invoke-lambda --path ~/lambdas/Exec_Command_Example/ --payload '{"command": "echo Hello, World"}'
-<RUN mode=event handler=function.lambda_handler suppress_init=False>
+<CREATE Id:3d57aea1ba1e421a9f071ba741a278cb>
+<RUN Mode:event Handler:function.lambda_handler Suppress_init:0>
 <RUNNING>
-[INFO]  2016-10-27T00:17:23.278Z                Function module init() called
-
-START RequestId: 5f2178ee-2560-4b88-b253-7889ccfaa944 Version: $LATEST
-[INFO]  2016-10-27T00:17:23.278Z        5f2178ee-2560-4b88-b253-7889ccfaa944    Running command: echo Hello, World
-
+[INFO]  2016-12-07T00:38:29.752Z                Function module init() called
+START RequestId: 3773e161-e0af-437e-aa95-cd6dea0e457e Version: $LATEST
+[INFO]  2016-12-07T00:38:29.752Z        3773e161-e0af-437e-aa95-cd6dea0e457e    Running command: echo Hello, World
+END: RequestId: 3773e161-e0af-437e-aa95-cd6dea0e457e
 Hello, World
 
-END: RequestId: 5f2178ee-2560-4b88-b253-7889ccfaa944
+<TERMINATE Id:3d57aea1ba1e421a9f071ba741a278cb>
 ```
 
 Bootstrap
@@ -84,3 +84,4 @@ Notes
 =====
 
 Credentials for any AWS API calls made by your function are provided by your AWS CLI Profile. Ensure that the profile you have selected (with the `--profile` option) has the appropriate rights.
+
