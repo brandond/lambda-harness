@@ -8,7 +8,45 @@ import json
 import imp
 import sys
 import os
+import re
 import io
+
+VARIABLE_VAL_PATTERN = '[^,]*'
+VARIABLE_KEY_PATTERN = '[a-zA-Z]([a-zA-Z0-9_])+'
+VARIABLE_KEY_RESERVE = ['LAMBDA_TASK_ROOT', 'LAMBDA_RUNTIME_DIR',
+                        'AWS_REGION', 'AWS_DEFAULT_REGION',
+                        'AWS_LAMBDA_LOG_GROUP_NAME', 'AWS_LAMBDA_LOG_STREAM_NAME',
+                        'AWS_LAMBDA_FUNCTION_NAME',
+                        'AWS_LAMBDA_FUNCTION_MEMORY_SIZE', 'AWS_LAMBDA_FUNCTION_VERSION',
+                        'AWS_ACCESS_KEY', 'AWS__ACCESS_KEY_ID',
+                        'AWS_SECRET__KEY', 'AWS_SECRET_ACCESS_KEY',
+                        'AWS_SESSION_TOKEN', 'AWS_SECURITY_TOKEN']
+
+def validate_variables(variables):
+    reserved_keys = []
+    if not isinstance(variables, dict):
+        raise click.exceptions.ClickException("Invalid type for variables, value: {0}, type: {1}, valid types: {2}"
+                                              .format(variables, type(variables), dict))
+
+    for (key, val) in variables.items():
+        if not isinstance(val, basestring):
+            raise click.exceptions.ClickException("Invalid type for variables.{0}, value: {1}, type: {2}, valid types: {3}"
+                                                  .format(key, val, type(val), basestring))
+        elif not re.match(VARIABLE_KEY_PATTERN, key):
+            raise click.exceptions.ClickException("variables failed to satisfy constraint: "
+                                                  "Map keys must satisfy constraint: [Member must satisfy regular expression pattern: {0}]"
+                                                  .format(VARIABLE_KEY_PATTERN))
+        elif not re.match(VARIABLE_VAL_PATTERN, val):
+            raise click.exceptions.ClickException("variables failed to satisfy constraint: "
+                                                  "Map values must satisfy constraint: [Member must satisfy regular expression pattern: {0}]"
+                                                  .format(VARIABLE_VAL_PATTERN))
+        elif key in VARIABLE_KEY_RESERVE:
+            reserved_keys.append(key)
+
+    if reserved_keys:
+        raise click.exceptions.ClickException("variables provided contain reserved keys that are currently not supported for modification. "
+                                              "Reserved keys used in this request: {0}"
+                                              .format(', '.join(reserved_keys)))
 
 def try_get_paramfile(ctx, param, value):
     if value is not None:
@@ -49,11 +87,14 @@ def invoke(path, payload, client_context, qualifier, profile, region):
     lambda_handler = lambda_config.get('handler')
     lambda_version = qualifier
     lambda_region = lambda_config.get('region') if region is None else region
+    lambda_variables = lambda_config.get('variables', {})
+
+    validate_variables(lambda_variables)
 
     events = io.BytesIO(payload.encode())
     contexts = io.BytesIO(client_context.encode())
 
-    slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_timeout, lambda_region)
+    slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_timeout, lambda_region, lambda_variables)
     while True:
         event = events.readline()
         context = contexts.readline()

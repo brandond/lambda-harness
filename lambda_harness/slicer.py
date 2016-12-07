@@ -42,6 +42,7 @@ class Slicer(object):
                  'version',
                  'memory',
                  'timeout',
+                 'variables',
                  'control_socket',
                  'console_socket',
                  'sandbox_process',
@@ -53,7 +54,7 @@ class Slicer(object):
     def make_context(self, context):
         return {'cognito_identity_id': None, 'cognito_identity_pool_id': None, 'client_context': base64.b64decode(context) if context else None}
 
-    def __init__(self, profile, path, name, handler, version, memory, timeout, region):
+    def __init__(self, profile, path, name, handler, version, memory, timeout, region, variables):
         self.session = boto3.session.Session(profile_name=profile, region_name=region)
         self.account_id = self.session.client('sts').get_caller_identity().get('Account') 
         self.path = os.path.abspath(path)
@@ -62,6 +63,7 @@ class Slicer(object):
         self.version = version
         self.memory = memory
         self.timeout = timeout
+        self.variables = variables
         self.sandbox_id = str(uuid.uuid4()).replace('-','')
         self.invoke_id = str(uuid.uuid4())
         self.control_socket = None
@@ -157,6 +159,10 @@ class Slicer(object):
         environ['AWS_LAMBDA_LOG_STREAM_NAME'] = '%s/[%s]%s' % (time.strftime('%Y/%m/%d'), self.version, self.sandbox_id)
         environ['AWS_LAMBDA_FUNCTION_VERSION'] = self.version
         environ['AWS_LAMBDA_FUNCTION_MEMORY_SIZE'] = self.memory
+
+        # Override defaults with user variables
+        for (key, val) in self.variables.items():
+            environ[key] = val
 
         return environ
 
