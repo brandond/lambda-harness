@@ -9,7 +9,6 @@ Current notable gaps include:
 
 Other than these caveats, it should look and feel roughly like a real Lambda execution, including all the correct environment variables, data structures, and log messages.
 
-
 Example
 =======
 
@@ -33,7 +32,7 @@ Bootstrap
 
 `lambda bootstrap`
 
-In order to accurately simulate the AWS Lambda environment, several Python modules must be extracted from the Lambda filesystem and made available to the Python module. This is done by:
+In order to accurately simulate the AWS Lambda environment, several Python modules must be extracted from the remote filesystem. This is done by:
 * Creating a temporary Role and Lambda
 * Invoking the Lambda to extract the files
 * Removing the Role and Lambda
