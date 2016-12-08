@@ -114,7 +114,7 @@ class Slicer(object):
         bootstrap_env = self.setup_environment(str(control.fileno()), str(console.fileno()))
         os.chdir(self.path)
         os.setsid()
-        os.execle(sys.executable, sys.executable, bootstrap_path, bootstrap_env)
+        os.execle(sys.executable, sys.executable, '-B', bootstrap_path, bootstrap_env)
 
     def setup_environment(self, control_fd, console_fd):
         environ = {}
