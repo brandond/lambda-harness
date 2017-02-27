@@ -218,7 +218,7 @@ class Slicer(object):
 
         self.receive_console_message("START RequestId: %s Version: %s\n" % (self.invoke_id, self.version))
         self.control_socket.send({'name': 'invoke',
-                                  'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), arn, None, None, None, None)
+                                  'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), arn, None, None, None)
                                   })
         self.state = 'Invoking'
 
