@@ -214,11 +214,15 @@ class Slicer(object):
         boto_creds = self.session.get_credentials().get_frozen_credentials()
         data_sock = None
         credentials = {'key': boto_creds.access_key, 'secret': boto_creds.secret_key, 'session': boto_creds.token}
-        arn = 'arn:aws:lambda:%s:%s:function:%s' % (self.session.region_name, self.account_id, self.name)
+        invoked_function_arn = 'arn:aws:lambda:%s:%s:function:%s' % (self.session.region_name, self.account_id, self.name)
+        trace_id = None
+        parent_id = None
+        sampled = False
+        x_amzn_trace_id = None
 
         self.receive_console_message("START RequestId: %s Version: %s\n" % (self.invoke_id, self.version))
         self.control_socket.send({'name': 'invoke',
-                                  'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), arn, None, None, None)
+                                  'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), invoked_function_arn, trace_id, parent_id, sampled, x_amzn_trace_id)
                                   })
         self.state = 'Invoking'
 
