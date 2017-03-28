@@ -98,13 +98,13 @@ def invoke(path, payload, client_context, variables, qualifier, profile, region,
     except IOError as e:
         raise click.exceptions.FileError(filename=e.filename, hint=e.strerror)
 
-    lambda_name = lambda_config.get('name')
-    lambda_memory = str(lambda_config.get('memory'))
-    lambda_timeout = int(lambda_config.get('timeout'))
-    lambda_handler = lambda_config.get('handler')
-    lambda_version = qualifier
-    lambda_region = lambda_config.get('region') if region is None else region
+    lambda_name = lambda_config.get('name', 'DefaultLambda')
+    lambda_memory = str(lambda_config.get('memory', '128'))
+    lambda_timeout = int(lambda_config.get('timeout', '3'))
+    lambda_handler = lambda_config.get('handler', 'function.handler')
+    lambda_region = lambda_config.get('region', None) if region is None else region
     lambda_variables = lambda_config.get('variables', {}) if variables is None else json.loads(variables)
+    lambda_version = qualifier
 
     validate_variables(lambda_variables)
 
