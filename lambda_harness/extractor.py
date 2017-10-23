@@ -58,16 +58,18 @@ class Extractor(object):
 
     def create_lambda_function(self, role_arn):
         print('Creating function: {0}'.format(self.FUNC_NAME))
+        function_conf = {'FunctionName': self.FUNC_NAME,
+                         'Runtime': 'python2.7',
+                         'Role': role_arn,
+                         'Handler': 'function.handler',
+                         'Description': 'Extracts awslambda runtime module from Lambda environment'
+                        }
         try:
-            response = self.lam.create_function(FunctionName=self.FUNC_NAME,
-                                                Runtime='python2.7',
-                                                Role=role_arn,
-                                                Handler='function.handler',
-                                                Code={'ZipFile': self.get_zip_bytes()},
-                                                Description='Extracts awslambda runtime module from Lambda environment')
+            response = self.lam.create_function(Code={'ZipFile': self.get_zip_bytes()}, **function_conf)
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'ResourceConflictException':
-                print('Function already exists; updating code')
+                print('Function already exists; updating configuration and code')
+                self.lam.update_function_configuration(**function_conf)
                 response = self.lam.update_function_code(FunctionName=self.FUNC_NAME, ZipFile=self.get_zip_bytes())
             else:
                 raise
@@ -129,10 +131,10 @@ class Extractor(object):
     # Begin Handler
     def handler(event,context):
         tar_bytes = io.BytesIO()
-        with tarfile.open(mode='w:bz2', fileobj=tar_bytes) as tar_file:
+        with tarfile.open(mode='w:gz', fileobj=tar_bytes) as tar_file:
             for py_file in ('bootstrap.py','wsgi.py'):
                 py_path = os.path.join(os.environ['LAMBDA_RUNTIME_DIR'], 'awslambda', py_file)
                 tar_file.add(py_path, arcname=py_file)
-        return base64.b64encode(tar_bytes.getvalue())
+        return base64.b64encode(tar_bytes.getvalue()).decode()
     # End Handler
     """

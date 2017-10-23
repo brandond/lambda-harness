@@ -1,6 +1,8 @@
 from __future__ import print_function
 from multiprocessing import Process, Pipe
 from datetime import datetime
+from requests import Response
+from io import BytesIO
 import atexit
 import base64
 import boto3
@@ -48,13 +50,16 @@ class Slicer(object):
                  'sandbox_process',
                  'state',
                  'result',
-                 'start_time'
+                 'start_time',
+                 'events',
+                 'contexts',
+                 'interval'
                 )
 
     def make_context(self, context):
         return {'cognito_identity_id': None, 'cognito_identity_pool_id': None, 'client_context': base64.b64decode(context) if context else None}
 
-    def __init__(self, profile, path, name, handler, version, memory, timeout, region, variables):
+    def __init__(self, profile, path, name, handler, version, memory, timeout, region, variables, interval):
         self.session = boto3.session.Session(profile_name=profile, region_name=region)
         self.account_id = self.session.client('sts').get_caller_identity().get('Account') 
         self.path = os.path.abspath(path)
@@ -64,6 +69,7 @@ class Slicer(object):
         self.memory = memory
         self.timeout = timeout
         self.variables = variables
+        self.interval = interval
         self.sandbox_id = str(uuid.uuid4()).replace('-','')
         self.invoke_id = str(uuid.uuid4())
         self.control_socket = None
@@ -72,6 +78,8 @@ class Slicer(object):
         self.state = 'Uninitialized'
         self.result = None
         self.start_time = None
+        self.events = []
+        self.contexts = []
         atexit.register(self.terminate_sandbox)
 
     def start_sandbox(self):
@@ -103,11 +111,17 @@ class Slicer(object):
         self.console_socket = None
         self.state = 'Terminated'
 
-    def invoke(self, event, context):
-        self.start_sandbox()
-        self.send_invoke(event, context)
-        self.poll_until('Invoke Done')
-        return self.result
+    def invoke(self, events, contexts):
+        self.events = events
+        self.contexts = contexts
+        for event in self.events:
+            if self.sandbox_process:
+                time.sleep(self.interval / 1000.0) 
+            context = self.contexts.pop(0) if self.contexts else None
+            self.start_sandbox()
+            self.send_invoke(event, context)
+            self.poll_until('Invoke Done')
+            yield self.result
         
     def start_bootstrap(self, control, console):
         bootstrap_path = os.path.join(os.path.dirname(__file__), 'awslambda', 'bootstrap.py')
@@ -135,9 +149,15 @@ class Slicer(object):
         # These are used by the native runtime support lib and explicitly clearned out by the bootstrap code
         environ["_LAMBDA_SHARED_MEM_FD"] = '-1'
         environ["_LAMBDA_LOG_FD"] = '-1'
+        environ["_LAMBDA_SB_ID"] = '-1'
         environ["_LAMBDA_CONSOLE_SOCKET"] = console_fd
         environ['_LAMBDA_CONTROL_SOCKET'] = control_fd
         environ["_LAMBDA_RUNTIME_LOAD_TIME"] = '%d' % (time.time() * 1000000000)
+        environ["_X_AMZN_TRACE_ID"] = 'Parent=-1'
+        environ["_AWS_XRAY_DAEMON_ADDRESS"] = '169.254.79.2'
+        environ["_AWS_XRAY_DAEMON_PORT"] = '2000'
+        environ["AWS_XRAY_DAEMON_ADDRESS"] = '169.254.79.2:2000'
+        environ["AWS_XRAY_CONTEXT_MISSING"] = 'LOG_ERROR'
 
         # AWS environment has /etc/localtime -> /usr/share/zoneinfo/UTC
         # but we fake it by just setting TZ
@@ -164,6 +184,13 @@ class Slicer(object):
         for (key, val) in self.variables.items():
             environ[key] = val
 
+        # pass through proxy stuff, overriding user variables
+        for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'REQUESTS_CA_BUNDLE']:
+            for key in (key, key.lower()):
+                if key in os.environ:
+                    print("Passing through environment variable {0}".format(key), file=sys.stderr)
+                    environ[key] = os.environ[key]
+
         return environ
 
     def poll_until(self, state):
@@ -173,10 +200,20 @@ class Slicer(object):
                 name = message.get('name')
                 args = message.get('args', [])
 
-                if   name == 'running':
+                if   name == 'user_init_start':
+                    self.user_init_start(*args)
+                elif name == 'user_init_end':
+                    self.user_init_end(*args)
+                elif name == 'user_invoke_start':
+                    self.user_invoke_start(*args)
+                elif name == 'user_invoke_end':
+                    self.user_invoke_end(*args)
+                elif name == 'running':
                     self.sandbox_running(*args)
                 elif name == 'fault':
                     self.sandbox_fault(*args)
+                elif name == 'xray_exception':
+                    self.xray_exception(*args)
                 elif name == 'done':
                     self.sandbox_done(*args)
                 elif name == 'console':
@@ -185,13 +222,14 @@ class Slicer(object):
                     self.receive_log_bytes(*args)
                 elif name == 'remaining':
                     self.remaining_time(*args)
+                elif name == 'invoke':
+                    self.chain_invoke(*args)
                 else:
                     raise RuntimeError('Received unknown message from pipe') 
             elif self.sandbox_process.exitcode != None:
                 self.terminate_sandbox()
                 self.sandbox_done(self.invoke_id, 'unhandled', '{"errorMessage": "Process exited before completing request"}')
-                return                
-
+                return
 
     def send_start(self):
         boto_creds = self.session.get_credentials().get_frozen_credentials()
@@ -205,6 +243,21 @@ class Slicer(object):
                                   })
         self.state = 'Starting'
 
+    def user_init_start(self):
+        print("<USER_INIT_START>", file=sys.stderr)
+
+    def user_init_end(self):
+        print("<USER_INIT_END>", file=sys.stderr)
+
+    def user_invoke_start(self):
+        print("<USER_INVOKE_START>", file=sys.stderr)
+
+    def user_invoke_end(self):
+        print("<USER_INVOKE_END>", file=sys.stderr)
+
+    def xray_exception(self, xray_json):
+        print("<XRAY_EXCEPTION>", file=sys.stderr)
+
     def sandbox_running(self, invokeid):
         assert self.invoke_id == invokeid
         self.state = 'Running'
@@ -215,14 +268,11 @@ class Slicer(object):
         data_sock = None
         credentials = {'key': boto_creds.access_key, 'secret': boto_creds.secret_key, 'session': boto_creds.token}
         invoked_function_arn = 'arn:aws:lambda:%s:%s:function:%s' % (self.session.region_name, self.account_id, self.name)
-        trace_id = None
-        parent_id = None
-        sampled = False
         x_amzn_trace_id = None
 
         self.receive_console_message("START RequestId: %s Version: %s\n" % (self.invoke_id, self.version))
         self.control_socket.send({'name': 'invoke',
-                                  'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), invoked_function_arn, trace_id, parent_id, sampled, x_amzn_trace_id)
+                                  'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), invoked_function_arn, x_amzn_trace_id)
                                   })
         self.state = 'Invoking'
 
@@ -259,4 +309,14 @@ class Slicer(object):
             remaining_seconds -= (datetime.now() - self.start_time).total_seconds()
         self.control_socket.send({'name': 'remaining',
                                   'args': remaining_seconds * 1000.0
+                                  })
+    def chain_invoke(self, invoke_type, context, body, qualifier):
+        self.events.append(body)
+        self.contexts.append(context)
+        response = Response()
+        response.status_code = 202
+        parsed = {'Payload': BytesIO(),
+                  'StatusCode': response.status_code}
+        self.control_socket.send({'name': 'invoke',
+                                  'args': (response, parsed)
                                   })

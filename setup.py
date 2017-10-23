@@ -4,9 +4,6 @@
 from setuptools import setup, find_packages
 import sys
 
-if sys.version_info <= (2,7) or sys.version_info >= (3,0):
-    raise RuntimeError("lambda-harness doesn't support Python versions other than 2.7")
-
 version = {}
 
 with open("lambda_harness/_version.py") as fp:

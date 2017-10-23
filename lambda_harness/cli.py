@@ -112,19 +112,11 @@ def invoke(path, payload, client_context, variables, qualifier, profile, region,
     contexts = io.BytesIO(client_context.encode())
 
     first_invoke = True
-    slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_timeout, lambda_region, lambda_variables)
-    while True:
-        event = events.readline()
-        context = contexts.readline()
-        if event:
-            if first_invoke:
-                first_invoke = False
-            else:
-                time.sleep(interval / 1000.0)
-
-            print_var(slicer.invoke(event, context))
-        else:
-            break
+    slicer = Slicer(profile, path, lambda_name, lambda_handler, lambda_version, lambda_memory, lambda_timeout, lambda_region, lambda_variables, interval)
+    events = events.readlines()
+    contexts = contexts.readlines()
+    for response in slicer.invoke(events, contexts):
+        print_var(response)
 
 @cli.command()
 @click.option('--profile', default=None, help='Use a specific profile from your credential file.')
