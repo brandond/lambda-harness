@@ -13,6 +13,8 @@ import math
 import sys
 import os
 
+MAX_CRED_AGE = 240
+
 # Call flow:
 #   Bootstrap init, call recv_start()
 #   Bootstrap loads module specified by receive_start return values
@@ -35,6 +37,7 @@ import os
 
 class Slicer(object):
     __slots__ = ('session',
+                 'session_ts',
                  'account_id',
                  'sandbox_id',
                  'invoke_id',
@@ -61,6 +64,7 @@ class Slicer(object):
 
     def __init__(self, profile, path, name, handler, version, memory, timeout, region, variables, interval):
         self.session = boto3.session.Session(profile_name=profile, region_name=region)
+        self.session_ts = datetime.now()
         self.account_id = self.session.client('sts').get_caller_identity().get('Account') 
         self.path = os.path.abspath(path)
         self.name = name
@@ -232,12 +236,16 @@ class Slicer(object):
                 return
 
     def send_start(self):
+        if (datetime.now() - self.session_ts).total_seconds() >= MAX_CRED_AGE:
+            self.session = boto3.session.Session(profile_name=self.session.profile_name,
+                                                 region_name=self.session.region_name)
+            self.session_ts = datetime.now()
         boto_creds = self.session.get_credentials().get_frozen_credentials()
         mode = "event"
         suppress_init = 0 if self.state == 'Uninitialized' else 1
         credentials = {'key': boto_creds.access_key, 'secret': boto_creds.secret_key, 'session': boto_creds.token}
 
-        print("<RUN Mode:%s Handler:%s Suppress_init:%s>" % (mode, self.handler, suppress_init), file=sys.stderr)
+        print("<RUN Mode:%s Handler:%s Suppress_init:%s Key: %s>" % (mode, self.handler, suppress_init, credentials['key']), file=sys.stderr)
         self.control_socket.send({'name': 'start',
                                   'args': (self.invoke_id, mode, self.handler, suppress_init, credentials)
                                   })
@@ -264,13 +272,17 @@ class Slicer(object):
         print("<RUNNING>", file=sys.stderr)
 
     def send_invoke(self, event, context):
+        if (datetime.now() - self.session_ts).total_seconds() >= MAX_CRED_AGE:
+            self.session = boto3.session.Session(profile_name=self.session.profile_name,
+                                                 region_name=self.session.region_name)
+            self.session_ts = datetime.now()
         boto_creds = self.session.get_credentials().get_frozen_credentials()
         data_sock = None
         credentials = {'key': boto_creds.access_key, 'secret': boto_creds.secret_key, 'session': boto_creds.token}
         invoked_function_arn = 'arn:aws:lambda:%s:%s:function:%s' % (self.session.region_name, self.account_id, self.name)
         x_amzn_trace_id = None
 
-        self.receive_console_message("START RequestId: %s Version: %s\n" % (self.invoke_id, self.version))
+        self.receive_console_message("START RequestId: %s Version: %s Key: %s\n" % (self.invoke_id, self.version, credentials['key']))
         self.control_socket.send({'name': 'invoke',
                                   'args': (self.invoke_id, data_sock, credentials, event, self.make_context(context), invoked_function_arn, x_amzn_trace_id)
                                   })
@@ -280,7 +292,7 @@ class Slicer(object):
         assert self.invoke_id == invokeid
         print("%s: %s\n%s" % (msg, except_value, trace), file=sys.stderr)
 
-    def sandbox_done(self, invokeid, errortype=None, result=None):
+    def sandbox_done(self, invokeid, errortype=None, result=None, fatal=0):
         assert self.invoke_id == invokeid
         duration = (datetime.now() - self.start_time).total_seconds() * 1000
 
@@ -308,7 +320,7 @@ class Slicer(object):
         if self.start_time:
             remaining_seconds -= (datetime.now() - self.start_time).total_seconds()
         self.control_socket.send({'name': 'remaining',
-                                  'args': remaining_seconds * 1000.0
+                                  'args': int(remaining_seconds * 1000)
                                   })
     def chain_invoke(self, invoke_type, context, body, qualifier):
         self.events.append(body)

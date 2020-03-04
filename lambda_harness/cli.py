@@ -1,5 +1,5 @@
 from __future__ import print_function
-from awscli.paramfile import get_paramfile, ResourceLoadingError
+from awscli.paramfile import get_paramfile, LOCAL_PREFIX_MAP, ResourceLoadingError
 from pprint import pprint
 from .extractor import Extractor
 from .slicer import Slicer
@@ -52,7 +52,7 @@ def validate_variables(variables):
 def try_get_paramfile(ctx, param, value):
     if value is not None:
         try:
-            new_value = get_paramfile(value)
+            new_value = get_paramfile(value, LOCAL_PREFIX_MAP)
             if new_value is not None:
                 value = new_value
         except ResourceLoadingError as e:

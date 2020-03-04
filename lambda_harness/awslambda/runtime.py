@@ -33,8 +33,8 @@ def report_fault(invokeid, msg, except_value=None, trace=None):
 def report_xray_exception(xray_json):
     return socket.send({'name': 'xray_exception', 'args': [xray_json]})
 
-def report_done(invokeid, errortype=None, result=None):
-    return socket.send({'name': 'done', 'args': [invokeid, errortype, result]})
+def report_done(invokeid, errortype=None, result=None, fatal=0):
+    return socket.send({'name': 'done', 'args': [invokeid, errortype, result, fatal]})
 
 def send_console_message(msg, length=0):
     return socket.send({'name': 'console', 'args': [msg]})
